@@ -4,57 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Static HTML/CSS portfolio website deployed to AWS (S3 + CloudFront) via GitHub Actions. Terraform provisioning is planned but not yet scaffolded in this repo — see "Infrastructure" below.
+Static HTML/CSS portfolio website deployed to AWS using S3 and CloudFront, provisioned with Terraform, and automated via GitHub Actions.
 
 ## Architecture
 
-### Application (Static Site)
-- **index.html** — Single-page portfolio (About, Services, Courses, Books, Community, Contact)
-- **style.css** — All styling (~1145 lines), mobile-first responsive (breakpoints: 900px, 768px, 600px)
-- **privacy.html / terms.html** — Standalone pages with inline styles
-- **images/** — Static assets (logo, profile, course thumbnails, hero background)
-- Pure HTML5 + CSS3, no JavaScript, no build step
+- **index.html** — single-page portfolio (Home/Hero, About, Book, Courses, Contact), linked to `style.css`
+- **style.css** — all styling (~1145 lines), mobile-first responsive with breakpoints at 900px, 768px, and 600px
+- **privacy.html / terms.html** — standalone legal pages with their own inline styles (not sharing `style.css`)
+- **images/** — static assets (logo, profile photo, hero background, course/topic thumbnails)
+- Pure HTML5 and CSS3. No JavaScript. No build step. No framework.
 
-### Infrastructure
-- No `terraform/` directory exists yet. Infrastructure must be generated first via the `/scaffold-terraform` skill, which targets S3 (private, OAC-based access) + CloudFront.
-- The live AWS resources (S3 bucket, CloudFront distribution, GitHub OIDC role) already exist and are referenced directly in `.github/workflows/deploy.yml` — they were not provisioned from a Terraform config currently in this repo. If/when Terraform is scaffolded, reconcile it against the real resource identifiers in the workflow file rather than assuming a fresh deploy.
 
-### CI/CD (`.github/workflows/deploy.yml`)
-- Triggers on push to `main`
-- Authenticates to AWS via GitHub OIDC (`aws-actions/configure-aws-credentials`) — no stored access keys
-- Syncs the repo to S3 with `aws s3 sync --delete`, excluding `.git`, `.github`, `.claude`, `terraform`, `.mcp.json`, and `*.md`
-- Invalidates the CloudFront distribution (`/*`) after sync
-- Bucket name, IAM role ARN, region, and CloudFront distribution ID are hardcoded in this file rather than sourced from Terraform outputs — update them here if the underlying infra changes
-
-## Skills (`.claude/skills/`)
-
-Infrastructure and deployment tasks are handled via skills rather than hand-written Terraform/CI code. All current skills are action skills (`disable-model-invocation: true`, manual/slash-command only):
-
-```
-/scaffold-terraform [aws-region] [project-name]  → Generate terraform/ for S3 + CloudFront (default: ap-south-1, portfolio-site)
-/tf-plan                                          → Run terraform plan + risk/blast-radius summary
-/tf-apply                                         → Run terraform apply + verify outputs
-/deploy                                           → Sync site to S3 + invalidate CloudFront (reads terraform outputs for bucket/dist-id)
-```
-
-`/deploy` and `/tf-apply` currently assume a `terraform/` directory with valid outputs, which won't exist until `/scaffold-terraform` has been run — for routine content deploys before then, the GitHub Actions workflow (push to `main`) is the actual deploy path, not these skills.
+### Known issue
+`index.html` has `onclick="goToSection(...)"` and `onclick="toggleMenu()"` handlers (nav logo, hamburger menu, mobile menu buttons), but there is no `<script>` tag or JS file anywhere in the repo defining these functions — the mobile menu and in-page nav-by-click are currently non-functional.
 
 ## Commands
 
-```bash
-# Local preview
-open index.html
+There is no build/lint/test tooling in this repo. Preview by opening `index.html` directly in a browser, or serve the directory with any static file server.
 
-# Terraform (only after /scaffold-terraform has generated terraform/)
-cd terraform && terraform init
-cd terraform && terraform plan
-cd terraform && terraform apply
-```
+terraform init, terraform plan, terraform apply
+
+## Working notes
+
+- `README.md` describes deploying this site to an Ubuntu VM via Nginx as a DMI (DevOps Micro Internship) Week 1 lab exercise, including a mandatory footer "deployed by" edit for ownership proof — treat this as the authoritative description of the repo's current purpose.
+- Git history (not present in the current working tree) shows this repo previously had `.claude/skills/` (deploy, scaffold-terraform, tf-plan, tf-apply) and a `.github/workflows/deploy.yml` for an AWS S3 + CloudFront deployment path. Those files have since been deleted from the working directory (uncommitted deletion as of this writing) — don't assume that infrastructure exists or recreate it unless asked.
 
 ## Conventions
-- Don't hand-write Terraform or CI/CD YAML — use the skills above so infra generation stays consistent.
-- GitHub Actions uses OIDC — no stored AWS access keys.
-- Site content changes deploy automatically via GitHub Actions on push to `main`; this is independent of the Terraform skills above.
+- All infrastructure changes go through Terraform — never modify AWS resources manually
+- No JavaScript in this project
+- CSS uses mobile-first approach with breakpoints at 900px, 768px, and 600px
 
-## Note on README.md
-`README.md` describes a different exercise (deploying this same site to an Ubuntu VM via Nginx as a DMI Week 1 lab, with a mandatory footer ownership-edit). That is not how this repo is actually deployed — actual deployment is AWS S3 + CloudFront via the GitHub Actions workflow above. Treat the README as stale/unrelated boilerplate, not as instructions for this repo's real CI/CD.
+## Safety
+- Never put secrets in this file. No API keys, passwords, or AWS credentials
